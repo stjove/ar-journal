@@ -503,8 +503,12 @@
       <input class="field-input" id="input-date" placeholder="March 2026" />
     </div>
     <div>
-      <label class="field-label">YouTube URL</label>
+      <label class="field-label">YouTube URL (for QR fallback)</label>
       <input class="field-input" id="input-url" placeholder="https://www.youtube.com/watch?v=..." />
+    </div>
+    <div>
+      <label class="field-label">Direct Video URL (for AR overlay)</label>
+      <input class="field-input" id="input-video-url" placeholder="https://... (MP4 link)" />
     </div>
     <button class="btn primary" onclick="addEntry()">Add Entry</button>
   </div>
@@ -529,7 +533,8 @@ if (!entries.find(e => e.id === 'xavier-misty-silhouette')) {
     id: 'xavier-misty-silhouette',
     title: 'Xavier — Misty Silhouette',
     date: 'March 2026',
-    youtubeUrl: 'https://www.youtube.com/watch?v=SI-9BFC_l4o'
+    youtubeUrl: 'https://www.youtube.com/watch?v=SI-9BFC_l4o',
+    videoUrl: 'https://drive.google.com/uc?export=download&id=1mzQFSAUcQXlzL0dAb2sExbskBWCARI4X'
   });
   saveEntries();
 }
@@ -573,20 +578,16 @@ function closeVideo() {
   document.getElementById('overlay-iframe').src = '';
 }
 
-// ── AR (NFT image tracking) ──
+// ── AR (NFT image tracking with live video overlay) ──
 let arScene = null;
-// Base URL where marker files live — same repo, markers/ folder
 const MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
 
 function startAR() {
   showScreen('ar-screen');
   if (arScene) return;
 
-  // Filter entries that have marker files uploaded (we assume they do if they're in the list)
-  const trackableEntries = entries;
-
-  if (!trackableEntries.length) {
-    toast('No entries with markers yet');
+  if (!entries.length) {
+    toast('No entries yet');
     showScreen('home');
     return;
   }
@@ -595,13 +596,31 @@ function startAR() {
 
   const scene = document.createElement('a-scene');
   scene.setAttribute('embedded', '');
-  scene.setAttribute('arjs', 'sourceType: webcam; trackingMethod: best;');
+  scene.setAttribute('arjs', 'sourceType: webcam; trackingMethod: best; debugUIEnabled: false;');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
-  scene.setAttribute('renderer', 'logarithmicDepthBuffer: true; precision: medium;');
+  scene.setAttribute('renderer', 'antialias: true; alpha: true;');
+  scene.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
 
-  trackableEntries.forEach(entry => {
-    // NFT marker — points to markers/[entry-id]/marker (without extension)
+  // Create assets container
+  const assets = document.createElement('a-assets');
+  scene.appendChild(assets);
+
+  entries.forEach(entry => {
     const markerPath = MARKER_BASE + entry.id + '/marker';
+    const videoId = 'vid-' + entry.id;
+    const hasDirectVideo = !!entry.videoUrl;
+
+    if (hasDirectVideo) {
+      const videoEl = document.createElement('video');
+      videoEl.id = videoId;
+      videoEl.src = entry.videoUrl;
+      videoEl.setAttribute('loop', '');
+      videoEl.setAttribute('crossorigin', 'anonymous');
+      videoEl.setAttribute('playsinline', '');
+      videoEl.setAttribute('webkit-playsinline', '');
+      videoEl.preload = 'auto';
+      assets.appendChild(videoEl);
+    }
 
     const marker = document.createElement('a-nft');
     marker.setAttribute('type', 'nft');
@@ -611,22 +630,40 @@ function startAR() {
     marker.setAttribute('smoothTolerance', '0.01');
     marker.setAttribute('smoothThreshold', '5');
 
-    // Invisible child so A-Frame is happy
-    const plane = document.createElement('a-plane');
-    plane.setAttribute('color', 'transparent');
-    plane.setAttribute('opacity', '0');
-    plane.setAttribute('rotation', '-90 0 0');
-    marker.appendChild(plane);
+    if (hasDirectVideo) {
+      const plane = document.createElement('a-plane');
+      plane.setAttribute('position', '0 0 0');
+      plane.setAttribute('rotation', '-90 0 0');
+      plane.setAttribute('width', '1.6');
+      plane.setAttribute('height', '0.9');
+      plane.setAttribute('material', `src:#${videoId}; shader: flat;`);
+      marker.appendChild(plane);
 
-    let videoOpened = false;
-    marker.addEventListener('markerFound', () => {
-      if (!videoOpened) {
-        videoOpened = true;
-        openVideo(entry.id);
-        // Reset after video is closed so it can trigger again
-        setTimeout(() => { videoOpened = false; }, 3000);
-      }
-    });
+      marker.addEventListener('markerFound', () => {
+        const v = document.getElementById(videoId);
+        if (v) v.play().catch(() => {});
+      });
+      marker.addEventListener('markerLost', () => {
+        const v = document.getElementById(videoId);
+        if (v) v.pause();
+      });
+    } else {
+      // No direct video — fall back to YouTube overlay
+      const plane = document.createElement('a-plane');
+      plane.setAttribute('color', 'transparent');
+      plane.setAttribute('opacity', '0');
+      plane.setAttribute('rotation', '-90 0 0');
+      marker.appendChild(plane);
+
+      let opened = false;
+      marker.addEventListener('markerFound', () => {
+        if (!opened) {
+          opened = true;
+          openVideo(entry.id);
+          setTimeout(() => { opened = false; }, 3000);
+        }
+      });
+    }
 
     scene.appendChild(marker);
   });
@@ -641,6 +678,7 @@ function startAR() {
 
 function stopAR() {
   if (arScene) {
+    arScene.querySelectorAll('video').forEach(v => v.pause());
     arScene.parentNode.removeChild(arScene);
     arScene = null;
   }
@@ -693,17 +731,20 @@ function addEntry() {
   const title = document.getElementById('input-title').value.trim();
   const date = document.getElementById('input-date').value.trim();
   const url = document.getElementById('input-url').value.trim();
+  const videoUrl = document.getElementById('input-video-url').value.trim();
 
-  if (!id || !title || !url) { toast('ID, title and URL are required'); return; }
+  if (!id || !title) { toast('ID and title are required'); return; }
+  if (!url && !videoUrl) { toast('At least one video URL is required'); return; }
   if (entries.find(e => e.id === id)) { toast('ID already exists'); return; }
-  if (!ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
+  if (url && !ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
 
-  entries.push({ id, title, date, youtubeUrl: url });
+  entries.push({ id, title, date, youtubeUrl: url, videoUrl });
   saveEntries();
   document.getElementById('input-id').value = '';
   document.getElementById('input-title').value = '';
   document.getElementById('input-date').value = '';
   document.getElementById('input-url').value = '';
+  document.getElementById('input-video-url').value = '';
   renderEntries();
   toast('Entry added');
 }
@@ -741,3 +782,4 @@ if (directEntry) {
 </script>
 </body>
 </html>
+
