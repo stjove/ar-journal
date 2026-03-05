@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>AR Journal</title>
 
-  <!-- AR.js + A-Frame for image tracking -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Courier+Prime&display=swap" rel="stylesheet" />
 
@@ -133,38 +129,17 @@
       padding: 0;
       justify-content: flex-start;
       background: #000;
-    }
-
-    #ar-container {
-      width: 100%;
-      height: 100dvh;
       position: relative;
-      overflow: hidden;
     }
 
-    /* AR.js injects a <video> for the camera feed — make sure it's visible */
-    #ar-container video.arjs-video,
-    .arjs-video {
-      position: absolute !important;
-      top: 0 !important; left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover !important;
-      z-index: 0 !important;
-    }
-
-    a-scene {
-      position: absolute !important;
-      top: 0 !important; left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      z-index: 1 !important;
-      background: transparent !important;
-    }
-
-    /* A-Frame canvas must be transparent so camera shows through */
-    a-scene canvas {
-      background: transparent !important;
+    #ar-iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000;
+      z-index: 0;
     }
 
     .ar-ui {
@@ -479,7 +454,7 @@
 
 <!-- ── AR SCREEN ── -->
 <div id="ar-screen" class="screen">
-  <div id="ar-container"></div>
+  <iframe id="ar-iframe" allow="camera" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#000;z-index:0;"></iframe>
   <div class="ar-ui">
     <div class="ar-hint">Point at a journal photo</div>
     <button class="ar-back" onclick="stopAR()">← Back</button>
@@ -599,110 +574,138 @@ function closeVideo() {
   document.getElementById('overlay-iframe').src = '';
 }
 
-// ── AR (NFT image tracking with live video overlay) ──
-let arScene = null;
+// ── AR (NFT image tracking via iframe) ──
 const MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
+
+function buildARDoc(entries) {
+  const markerTags = entries.map(entry => {
+    const markerPath = MARKER_BASE + entry.id + '/marker';
+    const hasVideo = !!entry.videoUrl;
+    const videoId = 'vid-' + entry.id;
+
+    const videoAsset = hasVideo
+      ? `<video id="${videoId}" src="${entry.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto" style="display:none"></video>`
+      : '';
+
+    const planeTag = hasVideo
+      ? `<a-plane position="0 0 0" rotation="-90 0 0" width="1.6" height="0.9" material="src:#${videoId}; shader:flat;"></a-plane>`
+      : `<a-plane color="transparent" opacity="0" rotation="-90 0 0" width="1" height="1"></a-plane>`;
+
+    const onFound = hasVideo
+      ? `this.querySelector('[material]') && document.getElementById('${videoId}').play();`
+      : `window.parent.postMessage({type:'markerFound',entryId:'${entry.id}'},'*');`;
+
+    const onLost = hasVideo
+      ? `document.getElementById('${videoId}').pause();`
+      : '';
+
+    return `
+      ${videoAsset}
+      <a-nft type="nft" url="${markerPath}" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5"
+        on-nft-found="${onFound}"
+        on-nft-lost="${onLost}">
+        ${planeTag}
+      </a-nft>`;
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:transparent; }
+    a-scene { width:100% !important; height:100% !important; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"><\/script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
+</head>
+<body>
+  <a-scene
+    embedded
+    arjs="sourceType:webcam; trackingMethod:best; debugUIEnabled:false;"
+    vr-mode-ui="enabled:false"
+    renderer="antialias:true; alpha:true; logarithmicDepthBuffer:true;">
+    <a-assets>
+      ${entries.filter(e => e.videoUrl).map(e =>
+        `<video id="vid-${e.id}" src="${e.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto"></video>`
+      ).join('\n      ')}
+    </a-assets>
+    ${entries.map(entry => {
+      const markerPath = MARKER_BASE + entry.id + '/marker';
+      const hasVideo = !!entry.videoUrl;
+      const videoId = 'vid-' + entry.id;
+      return `
+    <a-nft type="nft" url="${markerPath}" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+      ${hasVideo
+        ? `<a-plane position="0 0 0" rotation="-90 0 0" width="1.6" height="0.9" material="src:#${videoId}; shader:flat;"></a-plane>`
+        : `<a-plane color="transparent" opacity="0" rotation="-90 0 0" width="1" height="1"></a-plane>`
+      }
+    </a-nft>`;
+    }).join('\n')}
+    <a-entity camera></a-entity>
+  </a-scene>
+  <script>
+    // Listen for markerFound on each nft element and post to parent
+    document.addEventListener('DOMContentLoaded', () => {
+      ${entries.map((entry, i) => `
+      (function() {
+        var els = document.querySelectorAll('a-nft');
+        var el = els[${i}];
+        if (!el) return;
+        var entryId = '${entry.id}';
+        var hasVideo = ${!!entry.videoUrl};
+        var opened = false;
+        el.addEventListener('markerFound', function() {
+          if (hasVideo) {
+            var v = document.getElementById('vid-' + entryId);
+            if (v) v.play().catch(function(){});
+          } else {
+            if (!opened) {
+              opened = true;
+              window.parent.postMessage({type:'markerFound', entryId: entryId}, '*');
+              setTimeout(function(){ opened = false; }, 3000);
+            }
+          }
+        });
+        el.addEventListener('markerLost', function() {
+          if (hasVideo) {
+            var v = document.getElementById('vid-' + entryId);
+            if (v) v.pause();
+          }
+        });
+      })();`).join('\n')}
+    });
+  <\/script>
+</body>
+</html>`;
+}
 
 function startAR() {
   showScreen('ar-screen');
-  if (arScene) return;
+  const iframe = document.getElementById('ar-iframe');
+  if (iframe.src && iframe.src !== 'about:blank') return;
 
-  if (!entries.length) {
-    toast('No entries yet');
-    showScreen('home');
-    return;
+  const html = buildARDoc(entries);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  iframe.src = url;
+
+  // Listen for messages from the iframe (for entries without direct video)
+  window.addEventListener('message', handleARMessage);
+}
+
+function handleARMessage(e) {
+  if (e.data && e.data.type === 'markerFound') {
+    openVideo(e.data.entryId);
   }
-
-  const container = document.getElementById('ar-container');
-
-  const scene = document.createElement('a-scene');
-  scene.setAttribute('embedded', '');
-  scene.setAttribute('arjs', 'sourceType: webcam; trackingMethod: best; debugUIEnabled: false;');
-  scene.setAttribute('vr-mode-ui', 'enabled: false');
-  scene.setAttribute('renderer', 'antialias: true; alpha: true; transparent: true;');
-  scene.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-
-  // Create assets container
-  const assets = document.createElement('a-assets');
-  scene.appendChild(assets);
-
-  entries.forEach(entry => {
-    const markerPath = MARKER_BASE + entry.id + '/marker';
-    const videoId = 'vid-' + entry.id;
-    const hasDirectVideo = !!entry.videoUrl;
-
-    if (hasDirectVideo) {
-      const videoEl = document.createElement('video');
-      videoEl.id = videoId;
-      videoEl.src = entry.videoUrl;
-      videoEl.setAttribute('loop', '');
-      videoEl.setAttribute('crossorigin', 'anonymous');
-      videoEl.setAttribute('playsinline', '');
-      videoEl.setAttribute('webkit-playsinline', '');
-      videoEl.preload = 'auto';
-      assets.appendChild(videoEl);
-    }
-
-    const marker = document.createElement('a-nft');
-    marker.setAttribute('type', 'nft');
-    marker.setAttribute('url', markerPath);
-    marker.setAttribute('smooth', 'true');
-    marker.setAttribute('smoothCount', '10');
-    marker.setAttribute('smoothTolerance', '0.01');
-    marker.setAttribute('smoothThreshold', '5');
-
-    if (hasDirectVideo) {
-      const plane = document.createElement('a-plane');
-      plane.setAttribute('position', '0 0 0');
-      plane.setAttribute('rotation', '-90 0 0');
-      plane.setAttribute('width', '1.6');
-      plane.setAttribute('height', '0.9');
-      plane.setAttribute('material', `src:#${videoId}; shader: flat;`);
-      marker.appendChild(plane);
-
-      marker.addEventListener('markerFound', () => {
-        const v = document.getElementById(videoId);
-        if (v) v.play().catch(() => {});
-      });
-      marker.addEventListener('markerLost', () => {
-        const v = document.getElementById(videoId);
-        if (v) v.pause();
-      });
-    } else {
-      // No direct video — fall back to YouTube overlay
-      const plane = document.createElement('a-plane');
-      plane.setAttribute('color', 'transparent');
-      plane.setAttribute('opacity', '0');
-      plane.setAttribute('rotation', '-90 0 0');
-      marker.appendChild(plane);
-
-      let opened = false;
-      marker.addEventListener('markerFound', () => {
-        if (!opened) {
-          opened = true;
-          openVideo(entry.id);
-          setTimeout(() => { opened = false; }, 3000);
-        }
-      });
-    }
-
-    scene.appendChild(marker);
-  });
-
-  const camera = document.createElement('a-entity');
-  camera.setAttribute('camera', '');
-  scene.appendChild(camera);
-
-  container.appendChild(scene);
-  arScene = scene;
 }
 
 function stopAR() {
-  if (arScene) {
-    arScene.querySelectorAll('video').forEach(v => v.pause());
-    arScene.parentNode.removeChild(arScene);
-    arScene = null;
-  }
+  const iframe = document.getElementById('ar-iframe');
+  iframe.src = 'about:blank';
+  window.removeEventListener('message', handleARMessage);
   showScreen('home');
 }
 
