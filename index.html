@@ -139,11 +139,32 @@
       width: 100%;
       height: 100dvh;
       position: relative;
+      overflow: hidden;
+    }
+
+    /* AR.js injects a <video> for the camera feed — make sure it's visible */
+    #ar-container video.arjs-video,
+    .arjs-video {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      z-index: 0 !important;
     }
 
     a-scene {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
       width: 100% !important;
       height: 100% !important;
+      z-index: 1 !important;
+      background: transparent !important;
+    }
+
+    /* A-Frame canvas must be transparent so camera shows through */
+    a-scene canvas {
+      background: transparent !important;
     }
 
     .ar-ui {
@@ -598,7 +619,7 @@ function startAR() {
   scene.setAttribute('embedded', '');
   scene.setAttribute('arjs', 'sourceType: webcam; trackingMethod: best; debugUIEnabled: false;');
   scene.setAttribute('vr-mode-ui', 'enabled: false');
-  scene.setAttribute('renderer', 'antialias: true; alpha: true;');
+  scene.setAttribute('renderer', 'antialias: true; alpha: true; transparent: true;');
   scene.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
 
   // Create assets container
