@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+    a-scene { width:100% !important; height:100% !important; }
+    #tap-prompt {
+      display:none;
+      position:fixed;
+      bottom:5rem;
+      left:50%;
+      transform:translateX(-50%);
+      background:rgba(26,20,16,0.85);
+      border:1px solid rgba(196,168,130,0.5);
+      color:#f5f0e8;
+      font-family:monospace;
+      font-size:0.8rem;
+      letter-spacing:0.15em;
+      padding:0.75rem 1.5rem;
+      text-transform:uppercase;
+      z-index:999;
+      cursor:pointer;
+    }
+    #debug {
+      position:fixed;
+      top:0.5rem;
+      left:50%;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.6);
+      color:#c4a882;
+      font-family:monospace;
+      font-size:0.65rem;
+      padding:0.3rem 0.75rem;
+      z-index:999;
+      pointer-events:none;
+      letter-spacing:0.1em;
+      white-space:nowrap;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+</head>
+<body>
+
+<div id="debug">Initialising…</div>
+<div id="tap-prompt" onclick="resumeVideo()">▶ Tap to play video</div>
+
+<script>
+// Read entries from localStorage (same origin as main app)
+var entries = [];
+try {
+  var raw = localStorage.getItem('journal-entries');
+  if (raw) entries = JSON.parse(raw);
+} catch(e) {}
+
+var MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
+var dbg = document.getElementById('debug');
+var tapPrompt = document.getElementById('tap-prompt');
+var currentVideo = null;
+
+function setDebug(msg) { dbg.textContent = msg; }
+
+function resumeVideo() {
+  if (currentVideo) {
+    currentVideo.play().then(function() {
+      tapPrompt.style.display = 'none';
+      setDebug('Playing ✓');
+    }).catch(function(e) {
+      setDebug('Play error: ' + e.message);
+    });
+  }
+}
+
+// Build scene dynamically so we can use JS variables
+var scene = document.createElement('a-scene');
+scene.setAttribute('embedded', '');
+scene.setAttribute('arjs', 'sourceType:webcam; trackingMethod:best; debugUIEnabled:false;');
+scene.setAttribute('vr-mode-ui', 'enabled:false');
+scene.setAttribute('renderer', 'antialias:true; alpha:true; logarithmicDepthBuffer:true;');
+
+// Assets
+var assets = document.createElement('a-assets');
+entries.forEach(function(entry) {
+  if (!entry.videoUrl) return;
+  var v = document.createElement('video');
+  v.id = 'vid-' + entry.id;
+  v.src = entry.videoUrl;
+  v.loop = true;
+  v.muted = true;
+  v.setAttribute('crossorigin', 'anonymous');
+  v.setAttribute('playsinline', '');
+  v.setAttribute('webkit-playsinline', '');
+  v.preload = 'auto';
+  assets.appendChild(v);
+});
+scene.appendChild(assets);
+
+// Markers
+entries.forEach(function(entry) {
+  var markerPath = MARKER_BASE + entry.id + '/marker';
+  var hasVideo = !!entry.videoUrl;
+  var videoId = 'vid-' + entry.id;
+
+  var marker = document.createElement('a-nft');
+  marker.setAttribute('type', 'nft');
+  marker.setAttribute('url', markerPath);
+  marker.setAttribute('smooth', 'true');
+  marker.setAttribute('smoothCount', '10');
+  marker.setAttribute('smoothTolerance', '0.01');
+  marker.setAttribute('smoothThreshold', '5');
+
+  if (hasVideo) {
+    var plane = document.createElement('a-plane');
+    plane.setAttribute('position', '0 0 0');
+    plane.setAttribute('rotation', '-90 0 0');
+    plane.setAttribute('width', '1.6');
+    plane.setAttribute('height', '0.9');
+    plane.setAttribute('material', 'src:#' + videoId + '; shader:flat;');
+    marker.appendChild(plane);
+  } else {
+    var plane = document.createElement('a-plane');
+    plane.setAttribute('color', 'transparent');
+    plane.setAttribute('opacity', '0');
+    plane.setAttribute('rotation', '-90 0 0');
+    marker.appendChild(plane);
+  }
+
+  marker.addEventListener('markerFound', function() {
+    setDebug('Marker found: ' + entry.id);
+    if (hasVideo) {
+      var v = document.getElementById(videoId);
+      if (!v) { setDebug('Video element missing!'); return; }
+      currentVideo = v;
+      v.play().then(function() {
+        tapPrompt.style.display = 'none';
+        setDebug('Playing ✓');
+      }).catch(function(err) {
+        setDebug('Tap to play');
+        tapPrompt.style.display = 'block';
+      });
+    } else {
+      window.parent.postMessage({ type: 'markerFound', entryId: entry.id }, '*');
+    }
+  });
+
+  marker.addEventListener('markerLost', function() {
+    if (hasVideo) {
+      var v = document.getElementById(videoId);
+      if (v) v.pause();
+    }
+  });
+
+  scene.appendChild(marker);
+});
+
+var camera = document.createElement('a-entity');
+camera.setAttribute('camera', '');
+scene.appendChild(camera);
+
+scene.addEventListener('loaded', function() {
+  setDebug('Scene ready — point at photo');
+});
+
+document.body.appendChild(scene);
+setDebug('Building scene (' + entries.length + ' entries)…');
+</script>
+</body>
+</html>
