@@ -617,11 +617,45 @@ function buildARDoc(entries) {
     * { margin:0; padding:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; overflow:hidden; background:transparent; }
     a-scene { width:100% !important; height:100% !important; }
+    #tap-prompt {
+      display:none;
+      position:fixed;
+      bottom:5rem;
+      left:50%;
+      transform:translateX(-50%);
+      background:rgba(26,20,16,0.85);
+      border:1px solid rgba(196,168,130,0.5);
+      color:#f5f0e8;
+      font-family:monospace;
+      font-size:0.8rem;
+      letter-spacing:0.15em;
+      padding:0.75rem 1.5rem;
+      text-transform:uppercase;
+      z-index:999;
+      cursor:pointer;
+    }
+    #debug {
+      position:fixed;
+      top:0.5rem;
+      left:50%;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.6);
+      color:#c4a882;
+      font-family:monospace;
+      font-size:0.65rem;
+      padding:0.3rem 0.75rem;
+      z-index:999;
+      pointer-events:none;
+      letter-spacing:0.1em;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"><\/script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
 </head>
 <body>
+  <div id="debug">Initialising…</div>
+  <div id="tap-prompt" onclick="resumeVideo()">▶ Tap to play video</div>
+
   <a-scene
     embedded
     arjs="sourceType:webcam; trackingMethod:best; debugUIEnabled:false;"
@@ -629,7 +663,7 @@ function buildARDoc(entries) {
     renderer="antialias:true; alpha:true; logarithmicDepthBuffer:true;">
     <a-assets>
       ${entries.filter(e => e.videoUrl).map(e =>
-        `<video id="vid-${e.id}" src="${e.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto"></video>`
+        `<video id="vid-${e.id}" src="${e.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto" muted></video>`
       ).join('\n      ')}
     </a-assets>
     ${entries.map(entry => {
@@ -646,35 +680,72 @@ function buildARDoc(entries) {
     }).join('\n')}
     <a-entity camera></a-entity>
   </a-scene>
+
   <script>
-    // Listen for markerFound on each nft element and post to parent
-    document.addEventListener('DOMContentLoaded', () => {
+    var dbg = document.getElementById('debug');
+    var tapPrompt = document.getElementById('tap-prompt');
+    var currentVideo = null;
+
+    function setDebug(msg) { dbg.textContent = msg; }
+
+    function resumeVideo() {
+      if (currentVideo) {
+        currentVideo.play().then(function() {
+          tapPrompt.style.display = 'none';
+          setDebug('Playing ✓');
+        }).catch(function(e) {
+          setDebug('Play failed: ' + e.message);
+        });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      setDebug('DOM ready, waiting for scene…');
+
+      var scene = document.querySelector('a-scene');
+      scene.addEventListener('loaded', function() {
+        setDebug('Scene loaded, waiting for marker…');
+      });
+
       ${entries.map((entry, i) => `
       (function() {
-        var els = document.querySelectorAll('a-nft');
-        var el = els[${i}];
-        if (!el) return;
         var entryId = '${entry.id}';
         var hasVideo = ${!!entry.videoUrl};
-        var opened = false;
-        el.addEventListener('markerFound', function() {
-          if (hasVideo) {
-            var v = document.getElementById('vid-' + entryId);
-            if (v) v.play().catch(function(){});
-          } else {
-            if (!opened) {
-              opened = true;
+
+        function attachMarker() {
+          var els = document.querySelectorAll('a-nft');
+          var el = els[${i}];
+          if (!el) { setTimeout(attachMarker, 500); return; }
+
+          el.addEventListener('markerFound', function() {
+            setDebug('Marker found: ' + entryId);
+            if (hasVideo) {
+              var v = document.getElementById('vid-' + entryId);
+              if (!v) { setDebug('Video element not found!'); return; }
+              currentVideo = v;
+              v.play().then(function() {
+                setDebug('Playing ✓');
+                tapPrompt.style.display = 'none';
+              }).catch(function(err) {
+                setDebug('Autoplay blocked — tap to play');
+                tapPrompt.style.display = 'block';
+              });
+            } else {
               window.parent.postMessage({type:'markerFound', entryId: entryId}, '*');
-              setTimeout(function(){ opened = false; }, 3000);
             }
-          }
-        });
-        el.addEventListener('markerLost', function() {
-          if (hasVideo) {
-            var v = document.getElementById('vid-' + entryId);
-            if (v) v.pause();
-          }
-        });
+          });
+
+          el.addEventListener('markerLost', function() {
+            setDebug('Marker lost');
+            if (hasVideo) {
+              var v = document.getElementById('vid-' + entryId);
+              if (v) v.pause();
+            }
+          });
+
+          setDebug('Marker listener attached');
+        }
+        attachMarker();
       })();`).join('\n')}
     });
   <\/script>
