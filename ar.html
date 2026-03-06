@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #container video,
+    #container canvas {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
+
+    #tap-prompt {
+      display: none;
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26,20,16,0.85);
+      border: 1px solid rgba(196,168,130,0.5);
+      color: #f5f0e8;
+      font-family: monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.15em;
+      padding: 0.75rem 1.5rem;
+      text-transform: uppercase;
+      z-index: 999;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #debug {
+      position: fixed;
+      top: 0.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #c4a882;
+      font-family: monospace;
+      font-size: 0.65rem;
+      padding: 0.3rem 0.75rem;
+      z-index: 999;
+      pointer-events: none;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="debug">Initialising…</div>
+<div id="tap-prompt" onclick="resumeVideo()">▶ Tap to play video</div>
+<div id="container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
+
+<script>
+var dbg = document.getElementById('debug');
+var tapPrompt = document.getElementById('tap-prompt');
+
+function setDebug(msg) { dbg.textContent = msg; }
+
+// Read entries from localStorage
+var entries = [];
+try {
+  var raw = localStorage.getItem('journal-entries');
+  if (raw) entries = JSON.parse(raw);
+} catch(e) { setDebug('Error reading entries'); }
+
+var MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
+
+var entry = entries.find(function(e) { return !!e.videoUrl; });
+
+if (!entry) {
+  setDebug('No entries with video found');
+} else {
+  setDebug('Loading: ' + entry.id);
+
+  var mindFile = MARKER_BASE + entry.id + '/marker.mind';
+
+  var mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    container: document.getElementById('container'),
+    imageTargetSrc: mindFile,
+    maxTrack: 1,
+  });
+
+  var renderer = mindarThree.renderer;
+  var scene = mindarThree.scene;
+  var camera = mindarThree.camera;
+  var THREE = window.THREE;
+
+  // Video element for texture
+  var videoEl = document.createElement('video');
+  videoEl.src = entry.videoUrl;
+  videoEl.loop = true;
+  videoEl.muted = true;
+  videoEl.playsInline = true;
+  videoEl.setAttribute('playsinline', '');
+  videoEl.setAttribute('webkit-playsinline', '');
+  videoEl.crossOrigin = 'anonymous';
+  videoEl.preload = 'auto';
+  document.body.appendChild(videoEl);
+
+  videoEl.addEventListener('error', function() {
+    setDebug('Video error: ' + (videoEl.error ? videoEl.error.code : '?'));
+  });
+
+  videoEl.addEventListener('canplay', function() {
+    setDebug('Video ready — waiting for marker');
+  });
+
+  var videoTexture = new THREE.VideoTexture(videoEl);
+  videoTexture.minFilter = THREE.LinearFilter;
+  videoTexture.magFilter = THREE.LinearFilter;
+
+  var geometry = new THREE.PlaneGeometry(1, 0.5625);
+  var material = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+  var plane = new THREE.Mesh(geometry, material);
+
+  var anchor = mindarThree.addAnchor(0);
+  anchor.group.add(plane);
+
+  anchor.onTargetFound = function() {
+    setDebug('Marker found');
+    videoEl.play().then(function() {
+      tapPrompt.style.display = 'none';
+      setDebug('Playing ✓');
+    }).catch(function() {
+      tapPrompt.style.display = 'block';
+      setDebug('Tap to play');
+    });
+  };
+
+  anchor.onTargetLost = function() {
+    videoEl.pause();
+    setDebug('Marker lost — waiting');
+  };
+
+  window.resumeVideo = function() {
+    videoEl.play().then(function() {
+      tapPrompt.style.display = 'none';
+      setDebug('Playing ✓');
+    }).catch(function(e) {
+      setDebug('Play error: ' + e.message);
+    });
+  };
+
+  mindarThree.start().then(function() {
+    setDebug('Ready — point at photo');
+    renderer.setAnimationLoop(function() {
+      renderer.render(scene, camera);
+    });
+  }).catch(function(err) {
+    setDebug('Error: ' + err.message);
+  });
+}
+</script>
+</body>
+</html>
