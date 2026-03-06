@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+
+    #back-btn {
+      position:fixed; top:1rem; right:1rem;
+      background:rgba(26,20,16,0.85);
+      border:1px solid rgba(196,168,130,0.4);
+      color:#f5f0e8; font-family:monospace;
+      font-size:0.7rem; letter-spacing:0.15em;
+      padding:0.5rem 1rem; text-transform:uppercase;
+      z-index:9999; cursor:pointer;
+    }
+
+    #hint {
+      position:fixed; bottom:2rem; left:50%;
+      transform:translateX(-50%);
+      background:rgba(26,20,16,0.75);
+      border:1px solid rgba(196,168,130,0.3);
+      color:#c4a882; font-family:monospace;
+      font-size:0.7rem; letter-spacing:0.15em;
+      padding:0.6rem 1.2rem; text-transform:uppercase;
+      z-index:9999; pointer-events:none; white-space:nowrap;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+</head>
+<body>
+
+<button id="back-btn" onclick="history.back()">← Back</button>
+<div id="hint">Point camera at a journal photo</div>
+
+<script>
+var MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
+
+var entries = [];
+try { entries = JSON.parse(localStorage.getItem('journal-entries') || '[]'); } catch(e) {}
+
+// Build A-Frame scene
+var scene = document.createElement('a-scene');
+scene.setAttribute('embedded', '');
+scene.setAttribute('arjs', 'sourceType:webcam; trackingMethod:best; debugUIEnabled:false;');
+scene.setAttribute('vr-mode-ui', 'enabled:false');
+scene.setAttribute('renderer', 'logarithmicDepthBuffer:true; precision:medium;');
+
+entries.forEach(function(entry, i) {
+  var marker = document.createElement('a-nft');
+  marker.setAttribute('type', 'nft');
+  marker.setAttribute('url', MARKER_BASE + entry.id + '/marker');
+  marker.setAttribute('smooth', 'true');
+  marker.setAttribute('smoothCount', '10');
+  marker.setAttribute('smoothTolerance', '0.01');
+  marker.setAttribute('smoothThreshold', '5');
+
+  var plane = document.createElement('a-plane');
+  plane.setAttribute('color', 'transparent');
+  plane.setAttribute('opacity', '0');
+  plane.setAttribute('rotation', '-90 0 0');
+  marker.appendChild(plane);
+
+  var opened = false;
+  marker.addEventListener('markerFound', function() {
+    if (!opened) {
+      opened = true;
+      document.getElementById('hint').textContent = 'Found: ' + (entry.title || entry.id);
+      // Navigate back to journal with entry ID to open video
+      var base = window.location.href.replace(/\/[^/]*$/, '');
+      window.location.href = base + '/index.html?entry=' + encodeURIComponent(entry.id);
+    }
+  });
+
+  scene.appendChild(marker);
+});
+
+var camera = document.createElement('a-entity');
+camera.setAttribute('camera', '');
+scene.appendChild(camera);
+
+document.body.appendChild(scene);
+</script>
+</body>
+</html>
