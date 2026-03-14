@@ -965,35 +965,9 @@ function closeVideo() {
 const MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
 
 function buildARDoc(entries) {
-  const markerTags = entries.map(entry => {
-    const markerPath = MARKER_BASE + entry.id + '/marker';
-    const hasVideo = !!entry.videoUrl;
-    const videoId = 'vid-' + entry.id;
-
-    const videoAsset = hasVideo
-      ? `<video id="${videoId}" src="${entry.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto" style="display:none"></video>`
-      : '';
-
-    const planeTag = hasVideo
-      ? `<a-plane position="0 0 0" rotation="-90 0 0" width="1.6" height="0.9" material="src:#${videoId}; shader:flat;"></a-plane>`
-      : `<a-plane color="transparent" opacity="0" rotation="-90 0 0" width="1" height="1"></a-plane>`;
-
-    const onFound = hasVideo
-      ? `this.querySelector('[material]') && document.getElementById('${videoId}').play();`
-      : `window.parent.postMessage({type:'markerFound',entryId:'${entry.id}'},'*');`;
-
-    const onLost = hasVideo
-      ? `document.getElementById('${videoId}').pause();`
-      : '';
-
-    return `
-      ${videoAsset}
-      <a-nft type="nft" url="${markerPath}" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5"
-        on-nft-found="${onFound}"
-        on-nft-lost="${onLost}">
-        ${planeTag}
-      </a-nft>`;
-  }).join('\n');
+  const markerTargets = entries.map(entry =>
+    MARKER_BASE + entry.id + '/marker.mind'
+  );
 
   return `<!DOCTYPE html>
 <html>
@@ -1002,145 +976,45 @@ function buildARDoc(entries) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { width:100%; height:100%; overflow:hidden; background:transparent; }
-    a-scene { width:100% !important; height:100% !important; }
-    /* Make AR.js camera feed fill screen */
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+    #mindar-ui-overlay { display:none !important; }
+    canvas { position:fixed !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; z-index:1 !important; }
     video { position:fixed !important; top:50% !important; left:50% !important; transform:translate(-50%,-50%) !important; min-width:100% !important; min-height:100% !important; width:auto !important; height:auto !important; object-fit:cover !important; z-index:0 !important; }
-    canvas { position:fixed !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; z-index:1 !important; background:transparent !important; }
-    #tap-prompt {
-      display:none;
-      position:fixed;
-      bottom:5rem;
-      left:50%;
-      transform:translateX(-50%);
-      background:rgba(26,20,16,0.85);
-      border:1px solid rgba(196,168,130,0.5);
-      color:#f5f0e8;
-      font-family:monospace;
-      font-size:0.8rem;
-      letter-spacing:0.15em;
-      padding:0.75rem 1.5rem;
-      text-transform:uppercase;
-      z-index:999;
-      cursor:pointer;
-    }
-    #debug_disabled {
-      position:fixed;
-      top:0.5rem;
-      left:50%;
-      transform:translateX(-50%);
-      background:rgba(0,0,0,0.6);
-      color:#c4a882;
-      font-family:monospace;
-      font-size:0.65rem;
-      padding:0.3rem 0.75rem;
-      z-index:999;
-      pointer-events:none;
-      letter-spacing:0.1em;
-    }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"><\/script>
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"><\\/script>
 </head>
 <body>
-  <div id="debug">Initialising…</div>
-  <div id="tap-prompt" onclick="resumeVideo()">▶ Tap to play video</div>
+<script>
+  const ENTRIES = ${JSON.stringify(entries.map(e => ({ id: e.id })))};
+  const MARKER_URLS = ${JSON.stringify(markerTargets)};
 
-  <a-scene
-    embedded
-    arjs="sourceType:webcam; trackingMethod:best; debugUIEnabled:false; sourceWidth:1280; sourceHeight:960;"
-    vr-mode-ui="enabled:false"
-    renderer="antialias:true; alpha:true; logarithmicDepthBuffer:true;">
-    <a-assets>
-      ${entries.filter(e => e.videoUrl).map(e =>
-        `<video id="vid-${e.id}" src="${e.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto" muted></video>`
-      ).join('\n      ')}
-    </a-assets>
-    ${entries.map(entry => {
-      const markerPath = MARKER_BASE + entry.id + '/marker';
-      const hasVideo = !!entry.videoUrl;
-      const videoId = 'vid-' + entry.id;
-      return `
-    <a-nft type="nft" url="${markerPath}" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
-      ${hasVideo
-        ? `<a-plane position="0 0 0" rotation="-90 0 0" width="1.6" height="0.9" material="src:#${videoId}; shader:flat;"></a-plane>`
-        : `<a-plane color="transparent" opacity="0" rotation="-90 0 0" width="1" height="1"></a-plane>`
-      }
-    </a-nft>`;
-    }).join('\n')}
-    <a-entity camera></a-entity>
-  </a-scene>
-
-  <script>
-    var dbg = document.getElementById('debug');
-    var tapPrompt = document.getElementById('tap-prompt');
-    var currentVideo = null;
-
-    function setDebug(msg) { dbg.textContent = msg; }
-
-    function resumeVideo() {
-      if (currentVideo) {
-        currentVideo.play().then(function() {
-          tapPrompt.style.display = 'none';
-          setDebug('Playing ✓');
-        }).catch(function(e) {
-          setDebug('Play failed: ' + e.message);
-        });
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-      setDebug('DOM ready, waiting for scene…');
-
-      var scene = document.querySelector('a-scene');
-      scene.addEventListener('loaded', function() {
-        setDebug('Scene loaded, waiting for marker…');
-      });
-
-      ${entries.map((entry, i) => `
-      (function() {
-        var entryId = '${entry.id}';
-        var hasVideo = ${!!entry.videoUrl};
-
-        function attachMarker() {
-          var els = document.querySelectorAll('a-nft');
-          var el = els[${i}];
-          if (!el) { setTimeout(attachMarker, 500); return; }
-
-          el.addEventListener('markerFound', function() {
-            setDebug('Marker found: ' + entryId);
-            if (hasVideo) {
-              var v = document.getElementById('vid-' + entryId);
-              if (!v) { setDebug('Video element not found!'); return; }
-              currentVideo = v;
-              v.play().then(function() {
-                setDebug('Playing ✓');
-                tapPrompt.style.display = 'none';
-              }).catch(function(err) {
-                setDebug('Autoplay blocked — tap to play');
-                tapPrompt.style.display = 'block';
-              });
-            } else {
-              window.parent.postMessage({type:'markerFound', entryId: entryId}, '*');
-            }
-          });
-
-          el.addEventListener('markerLost', function() {
-            setDebug('Marker lost');
-            if (hasVideo) {
-              var v = document.getElementById('vid-' + entryId);
-              if (v) v.pause();
-            }
-          });
-
-          setDebug('Marker listener attached');
-        }
-        attachMarker();
-      })();`).join('\n')}
+  (async function() {
+    const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      container: document.body,
+      imageTargetSrc: MARKER_URLS.length === 1 ? MARKER_URLS[0] : MARKER_URLS[0],
+      maxTrack: 1,
+      uiLoading: 'no',
+      uiScanning: 'no',
+      uiError: 'no',
     });
-  <\/script>
+
+    await mindarThree.start();
+
+    ENTRIES.forEach(function(entry, i) {
+      const anchor = mindarThree.addAnchor(i);
+      var triggered = false;
+      anchor.onTargetFound = function() {
+        if (!triggered) {
+          triggered = true;
+          window.parent.postMessage({ type: 'markerFound', entryId: entry.id }, '*');
+        }
+      };
+    });
+  })();
+<\\/script>
 </body>
 </html>`;
+}
 }
 
 function startAR() {
