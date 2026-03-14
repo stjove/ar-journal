@@ -780,7 +780,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const v = document.createElement('div');
   v.style.cssText = 'position:fixed;bottom:0.5rem;right:0.75rem;font-family:monospace;font-size:0.6rem;color:rgba(255,255,255);z-index:9999;pointer-events:none;letter-spacing:0.1em;';
-  v.textContent = 'v3.2';
+  v.textContent = 'v3.3';
   document.body.appendChild(v);
 });
 
@@ -989,7 +989,7 @@ function buildARDoc(entries) {
 </head>
 <body>
   <a-scene
-    mindar-image="imageTargetSrc: ${markerTargets[0]}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
+    mindar-image="imageTargetSrc: ${markerTargets[0]}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; sourceWidth: 1280; sourceHeight: 960;"
     embedded
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true; precision: medium;">
