@@ -1005,7 +1005,7 @@ function buildARDoc(entries) {
     html, body { width:100%; height:100%; overflow:hidden; background:transparent; }
     a-scene { width:100% !important; height:100% !important; }
     /* Make AR.js camera feed fill screen */
-    video { position:fixed !important; top:50% !important; left:50% !important; transform:translate(-50%,-50%) !important; min-width:100% !important; min-height:100% !important; width:auto !important; height:auto !important; object-fit:cover !important; z-index:0 !important; }
+    video { position:fixed !important; top:50% !important; left:50% !important; transform:translate(-50%,-50%) !important; width:100% !important; height:100% !important; object-fit:contain !important; z-index:0 !important; }
     canvas { position:fixed !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; z-index:1 !important; background:transparent !important; }
     #tap-prompt {
       display:none;
@@ -1039,6 +1039,20 @@ function buildARDoc(entries) {
       letter-spacing:0.1em;
     }
   </style>
+  <script>
+    // Force high resolution camera before AR.js initializes
+    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = function(constraints) {
+      if (constraints && constraints.video) {
+        constraints.video = {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 }
+        };
+      }
+      return origGetUserMedia(constraints);
+    };
+  <\/script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"><\/script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"><\/script>
 </head>
@@ -1048,9 +1062,8 @@ function buildARDoc(entries) {
 
   <a-scene
     embedded
-    arjs="sourceType:webcam; trackingMethod:best; debugUIEnabled:false; sourceWidth:1280; sourceHeight:960;"
-    vr-mode-ui="enabled:false"
-    renderer="antialias:true; alpha:true; logarithmicDepthBuffer:true;">
+    arjs="sourceType:webcam; trackingMethod:best; debugUIEnabled:false; sourceWidth:1920; sourceHeight:1080; facingMode:environment;"
+    renderer="antialias:true; alpha:true; logarithmicDepthBuffer:true; precision:high;">
     <a-assets>
       ${entries.filter(e => e.videoUrl).map(e =>
         `<video id="vid-${e.id}" src="${e.videoUrl}" loop crossorigin="anonymous" playsinline webkit-playsinline preload="auto" muted></video>`
