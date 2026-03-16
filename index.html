@@ -969,7 +969,7 @@ function closeVideo() {
 const MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
 
 function buildARDoc(entries) {
-  const targetsUrl = window.location.href.replace(/\/[^/]*$/, '') + '/markers/targets.mind';
+  const targetsUrl = window.location.href.replace(/\/[^/]*$/, '') + '/targets.mind';
   const entriesJson = JSON.stringify(entries.map(e => ({ id: e.id, targetIndex: e.targetIndex ?? 0 })));
 
   return `<!DOCTYPE html>
