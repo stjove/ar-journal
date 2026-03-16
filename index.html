@@ -723,8 +723,6 @@
       <input class="field-input" id="input-title" placeholder="Xavier — Misty Silhouette" />
     </div>
     <div>
-      <label class="field-label">Date</label>
-      <input class="field-input" id="input-date" placeholder="March 2026" />
     </div>
     <div>
       <label class="field-label">Video URL</label>
@@ -784,7 +782,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const v = document.createElement('div');
   v.style.cssText = 'position:fixed;bottom:0.5rem;right:0.75rem;font-family:monospace;font-size:0.6rem;color:rgba(255,255,255);z-index:9999;pointer-events:none;letter-spacing:0.1em;';
-  v.textContent = 'v3.5';
+  v.textContent = 'v3.7';
   document.body.appendChild(v);
 });
 
@@ -1121,7 +1119,6 @@ function handleQRResult(text) {
 function addEntry() {
   const id = document.getElementById('input-id').value.trim().replace(/\s+/g, '-');
   const title = document.getElementById('input-title').value.trim();
-  const date = document.getElementById('input-date').value.trim();
   const url = document.getElementById('input-url').value.trim();
   const vertical = document.getElementById('input-vertical').checked;
   const targetIndex = parseInt(document.getElementById('input-index').value);
@@ -1131,11 +1128,10 @@ function addEntry() {
   if (!ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
   if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
 
-  entries.push({ id, title, date, youtubeUrl: url, vertical, targetIndex });
+  entries.push({ id, title, youtubeUrl: url, vertical, targetIndex });
   saveEntries();
   document.getElementById('input-id').value = '';
   document.getElementById('input-title').value = '';
-  document.getElementById('input-date').value = '';
   document.getElementById('input-url').value = '';
   document.getElementById('input-vertical').checked = false;
   document.getElementById('input-index').value = '';
@@ -1161,7 +1157,7 @@ function renderEntries() {
       <div class="entry-item">
         <div class="entry-item-info">
           <div class="entry-item-title">${e.title || e.id}</div>
-          <div class="entry-item-id">${e.date ? e.date + ' &nbsp;·&nbsp; ' : ''}Marker #${i} &nbsp;·&nbsp; ${e.id}</div>
+          <div class="entry-item-id">Marker #${i} &nbsp;·&nbsp; ${e.id}</div>
         </div>
         <div class="entry-button-group">
           <button class="entry-edit" onclick="toggleEdit('${e.id}')">Edit</button>
@@ -1169,8 +1165,9 @@ function renderEntries() {
         </div>
       </div>
       <div class="entry-edit-form" id="edit-${e.id}" style="display:none;">
+        <input class="field-input" id="edit-id-${e.id}" placeholder="Entry ID" value="${e.id}" />
+        <input class="field-input" id="edit-id-${e.id}" placeholder="Entry ID" value="${e.id}" />
         <input class="field-input" id="edit-title-${e.id}" placeholder="Title" value="${(e.title||'').replace(/"/g,'&quot;')}" />
-        <input class="field-input" id="edit-date-${e.id}" placeholder="Date" value="${(e.date||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-url-${e.id}" placeholder="YouTube URL" value="${(e.youtubeUrl||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-index-${e.id}" type="number" min="0" placeholder="Target index (0, 1, 2…)" value="${e.targetIndex ?? ''}" />
         <div style="display:flex;align-items:center;gap:0.75rem;">
@@ -1196,16 +1193,18 @@ function toggleEdit(id) {
 function saveEdit(id) {
   const entry = entries.find(e => e.id === id);
   if (!entry) return;
+  const newId = document.getElementById('edit-id-' + id).value.trim().replace(/\s+/g, '-');
   const title = document.getElementById('edit-title-' + id).value.trim();
-  const date = document.getElementById('edit-date-' + id).value.trim();
   const url = document.getElementById('edit-url-' + id).value.trim();
   const vertical = document.getElementById('edit-vertical-' + id).checked;
   const targetIndex = parseInt(document.getElementById('edit-index-' + id).value);
+  if (!newId) { toast('ID is required'); return; }
   if (!title) { toast('Title is required'); return; }
   if (url && !ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
   if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
+  if (newId !== id && entries.find(e => e.id === newId)) { toast('ID already exists'); return; }
+  entry.id = newId;
   entry.title = title;
-  entry.date = date;
   entry.youtubeUrl = url;
   entry.vertical = vertical;
   entry.targetIndex = targetIndex;
