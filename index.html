@@ -730,6 +730,10 @@
       <label class="field-label">Video URL</label>
       <input class="field-input" id="input-url" placeholder="https://www.youtube.com/watch?v=..." />
     </div>
+    <div>
+      <label class="field-label">Target Index <span style="font-size:0.65rem;color:var(--sepia);">(position of image in MindAR compiler, starting from 0)</span></label>
+      <input class="field-input" id="input-index" type="number" min="0" placeholder="0" />
+    </div>
     <div style="display:flex;align-items:center;margin-top:0.4rem;margin-bottom:1rem;">
       <input type="checkbox" id="input-vertical" style="margin-bottom:14px;width:1.2rem;height:1.2rem;accent-color:var(--black);cursor:pointer;border:white;" />
       <label class="field-label" for="input-vertical" style="padding-left:1rem;cursor:pointer;">Vertical video (portrait/TikTok format)</label>
@@ -780,7 +784,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const v = document.createElement('div');
   v.style.cssText = 'position:fixed;bottom:0.5rem;right:0.75rem;font-family:monospace;font-size:0.6rem;color:rgba(255,255,255);z-index:9999;pointer-events:none;letter-spacing:0.1em;';
-  v.textContent = 'v3.4';
+  v.textContent = 'v3.5';
   document.body.appendChild(v);
 });
 
@@ -965,12 +969,8 @@ function closeVideo() {
 const MARKER_BASE = window.location.href.replace(/\/[^/]*$/, '') + '/markers/';
 
 function buildARDoc(entries) {
-  const markerTargets = entries.map(entry =>
-    MARKER_BASE + entry.id + '/marker.mind'
-  );
-
-  const entriesJson = JSON.stringify(entries.map(e => ({ id: e.id })));
-  const urlsJson = JSON.stringify(markerTargets);
+  const targetsUrl = window.location.href.replace(/\/[^/]*$/, '') + '/markers/targets.mind';
+  const entriesJson = JSON.stringify(entries.map(e => ({ id: e.id, targetIndex: e.targetIndex ?? 0 })));
 
   return `<!DOCTYPE html>
 <html>
@@ -1017,13 +1017,13 @@ function buildARDoc(entries) {
 <body>
   <div id="debug">Initialising…</div>
   <a-scene
-    mindar-image="imageTargetSrc: ${markerTargets[0]}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
+    mindar-image="imageTargetSrc: ${targetsUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
     embedded
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true; precision: high; antialias: true;">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-    ${entries.map((entry, i) => `
-    <a-entity mindar-image-target="targetIndex: ${i}" data-entry-id="${entry.id}">
+    ${entries.map(e => `
+    <a-entity mindar-image-target="targetIndex: ${e.targetIndex ?? 0}" data-entry-id="${e.id}">
       <a-plane color="transparent" opacity="0" width="1" height="1" rotation="-90 0 0"></a-plane>
     </a-entity>`).join('\n')}
   </a-scene>
@@ -1032,7 +1032,7 @@ function buildARDoc(entries) {
     var ENTRIES = ${entriesJson};
     document.querySelector('a-scene').addEventListener('loaded', function() {
       dbg.textContent = 'Scene loaded, waiting for marker…';
-      ENTRIES.forEach(function(entry, i) {
+      ENTRIES.forEach(function(entry) {
         var el = document.querySelector('[data-entry-id="' + entry.id + '"]');
         if (!el) return;
         var triggered = false;
@@ -1124,18 +1124,21 @@ function addEntry() {
   const date = document.getElementById('input-date').value.trim();
   const url = document.getElementById('input-url').value.trim();
   const vertical = document.getElementById('input-vertical').checked;
+  const targetIndex = parseInt(document.getElementById('input-index').value);
 
   if (!id || !title || !url) { toast('ID, title and YouTube URL are required'); return; }
   if (entries.find(e => e.id === id)) { toast('ID already exists'); return; }
   if (!ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
+  if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
 
-  entries.push({ id, title, date, youtubeUrl: url, vertical });
+  entries.push({ id, title, date, youtubeUrl: url, vertical, targetIndex });
   saveEntries();
   document.getElementById('input-id').value = '';
   document.getElementById('input-title').value = '';
   document.getElementById('input-date').value = '';
   document.getElementById('input-url').value = '';
   document.getElementById('input-vertical').checked = false;
+  document.getElementById('input-index').value = '';
   renderEntries();
   toast('Entry added');
 }
@@ -1169,6 +1172,7 @@ function renderEntries() {
         <input class="field-input" id="edit-title-${e.id}" placeholder="Title" value="${(e.title||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-date-${e.id}" placeholder="Date" value="${(e.date||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-url-${e.id}" placeholder="YouTube URL" value="${(e.youtubeUrl||'').replace(/"/g,'&quot;')}" />
+        <input class="field-input" id="edit-index-${e.id}" type="number" min="0" placeholder="Target index (0, 1, 2…)" value="${e.targetIndex ?? ''}" />
         <div style="display:flex;align-items:center;gap:0.75rem;">
           <input type="checkbox" id="edit-vertical-${e.id}" ${e.vertical?'checked':''} style="width:1rem;height:1rem;accent-color:var(--sepia);cursor:pointer;" />
           <label class="field-label" for="edit-vertical-${e.id}" style="margin:0;cursor:pointer;">Vertical video</label>
@@ -1196,12 +1200,15 @@ function saveEdit(id) {
   const date = document.getElementById('edit-date-' + id).value.trim();
   const url = document.getElementById('edit-url-' + id).value.trim();
   const vertical = document.getElementById('edit-vertical-' + id).checked;
+  const targetIndex = parseInt(document.getElementById('edit-index-' + id).value);
   if (!title) { toast('Title is required'); return; }
   if (url && !ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
+  if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
   entry.title = title;
   entry.date = date;
   entry.youtubeUrl = url;
   entry.vertical = vertical;
+  entry.targetIndex = targetIndex;
   saveEntries();
   renderEntries();
   toast('Entry updated');
