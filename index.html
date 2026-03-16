@@ -142,7 +142,7 @@
       /*box-shadow: 0px 9px 13.4px 1px #1111252e, inset 0px 0px 1.1px 5px #d7d7dd, 0px 0px 40px 3px #ffffff74;*/
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 915px) {
       #home {
       background-image: url("https://stjove.github.io/ar-journal/img/background_mobile5.webp");
     }
@@ -242,25 +242,29 @@
     }
 
     #overlay-back {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      z-index: 1;
-      background: rgba(10,8,6,0.55);
-      border: 1px solid rgba(245,240,232,0.25);
-      color: var(--paper);
-      font-family: 'Courier Prime', monospace;
-      font-size: 1.1rem;
-      width: 2.5rem;
-      height: 2.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      pointer-events: all;
       cursor: pointer;
-      transition: background 0.2s, border-color 0.2s;
+      background: rgba(238, 240, 247, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgb(255, 255, 255);
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-family: var(--main);
+      font-weight: 500;
+      font-size: 19px;
+      letter-spacing: 10%;
+      color: var(--black);
+      text-transform: uppercase;
+      align-items: center;
     }
-    #overlay-back:hover { background: rgba(10,8,6,0.85); border-color: var(--accent); }
-    .video-close:hover { color: var(--accent); }
+
+    #angle {
+      width: 24px;
+      height: 24px;
+      padding-top: 3px;
+      padding-right: 3px;
+    }
 
     /* ── QR SCREEN ── */
     #qr-screen {
@@ -318,7 +322,7 @@
       background: #eaeaefcb;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 915px) {
       .qr-hint {
         font-size: 0.8rem;
       }
@@ -381,7 +385,7 @@
       margin: 0 auto;
       width: 100%;
       margin-top: 32px;
-      margin-bottom:64px;
+      margin-bottom: 50px;
     }
 
     .entry-item {
@@ -392,6 +396,7 @@
       border-radius: 20px;
       gap: 1rem;
       padding: 38px;
+      margin-bottom: 16px;
     }
 
     .entry-item-info {
@@ -529,7 +534,7 @@
       opacity: 0.6;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 915px) {
       .entry-form {
         padding: 24px;
       }
@@ -548,6 +553,7 @@
         flex-direction: column;
         align-items: flex-start;
         padding: 24px;
+        margin-bottom: 14px;
       }
 
       .entry-button-group {
@@ -782,8 +788,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   const v = document.createElement('div');
   v.style.cssText = 'position:fixed;bottom:0.5rem;right:0.75rem;font-family:monospace;font-size:0.6rem;color:rgba(255,255,255);z-index:9999;pointer-events:none;letter-spacing:0.1em;';
-  v.textContent = 'v3.7';
-  document.body.appendChild(v);
+  v.textContent = 'v3.8';
+  document.getElementById('home').appendChild(v);
 });
 
 // ── DATA ──
@@ -1060,6 +1066,11 @@ function startAR() {
   const blob = new Blob([html], { type: 'text/html' });
   iframe.src = URL.createObjectURL(blob);
   window.addEventListener('message', handleARMessage);
+
+  // Request fullscreen to hide browser UI
+  const arScreen = document.getElementById('ar-screen');
+  if (arScreen.requestFullscreen) arScreen.requestFullscreen().catch(() => {});
+  else if (arScreen.webkitRequestFullscreen) arScreen.webkitRequestFullscreen();
 }
 
 function handleARMessage(e) {
@@ -1069,6 +1080,8 @@ function handleARMessage(e) {
 }
 
 function stopAR() {
+  if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   const iframe = document.getElementById('ar-iframe');
   iframe.src = 'about:blank';
   window.removeEventListener('message', handleARMessage);
