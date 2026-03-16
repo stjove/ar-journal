@@ -1166,7 +1166,6 @@ function renderEntries() {
       </div>
       <div class="entry-edit-form" id="edit-${e.id}" style="display:none;">
         <input class="field-input" id="edit-id-${e.id}" placeholder="Entry ID" value="${e.id}" />
-        <input class="field-input" id="edit-id-${e.id}" placeholder="Entry ID" value="${e.id}" />
         <input class="field-input" id="edit-title-${e.id}" placeholder="Title" value="${(e.title||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-url-${e.id}" placeholder="YouTube URL" value="${(e.youtubeUrl||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-index-${e.id}" type="number" min="0" placeholder="Target index (0, 1, 2…)" value="${e.targetIndex ?? ''}" />
