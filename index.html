@@ -1054,11 +1054,6 @@ function startAR() {
   const blob = new Blob([html], { type: 'text/html' });
   iframe.src = URL.createObjectURL(blob);
   window.addEventListener('message', handleARMessage);
-
-  // Request fullscreen to hide browser UI
-  const arScreen = document.getElementById('ar-screen');
-  if (arScreen.requestFullscreen) arScreen.requestFullscreen().catch(() => {});
-  else if (arScreen.webkitRequestFullscreen) arScreen.webkitRequestFullscreen();
 }
 
 function handleARMessage(e) {
@@ -1068,8 +1063,6 @@ function handleARMessage(e) {
 }
 
 function stopAR() {
-  if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   const iframe = document.getElementById('ar-iframe');
   iframe.src = 'about:blank';
   window.removeEventListener('message', handleARMessage);
