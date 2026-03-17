@@ -3,8 +3,8 @@
   "short_name": "AR Journal",
   "start_url": "/ar-journal/",
   "display": "fullscreen",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#dfdde6",
+  "theme_color": "#dfdde6",
   "orientation": "any",
   "icons": [
     {
