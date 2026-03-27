@@ -714,7 +714,6 @@
 <!-- ── VIDEO OVERLAY ── -->
 <div id="video-overlay">
   <iframe id="overlay-iframe" allowfullscreen allow="autoplay; fullscreen"></iframe>
-  <video id="overlay-video" playsinline webkit-playsinline controls style="display:none;position:absolute;inset:0;width:100%;height:100%;background:#000;"></video>
   <button id="overlay-back" onclick="closeVideo()"><img id="angle" src="https://stjove.github.io/ar-journal/img/angle-left.svg"/></button>
 </div>
 
@@ -743,7 +742,7 @@
     </div>
     <div>
       <label class="field-label">Video URL</label>
-      <input class="field-input" id="input-url" placeholder="YouTube URL or direct video link" />
+      <input class="field-input" id="input-url" placeholder="https://www.youtube.com/watch?v=..." />
     </div>
     <div>
       <label class="field-label">Target Index (position in compiler)</label>
@@ -799,7 +798,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const v = document.createElement('div');
   v.style.cssText = 'position:fixed;bottom:0.5rem;right:0.75rem;font-family:monospace;font-size:0.6rem;color:rgba(255,255,255);z-index:9999;pointer-events:none;letter-spacing:0.1em;';
-  v.textContent = 'v4.9';
+  v.textContent = 'v4.8';
   document.getElementById('home').appendChild(v);
 });
 
@@ -946,42 +945,22 @@ function toast(msg) {
 }
 
 function ytEmbedUrl(url) {
-  if (!url) return null;
   const match = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null;
 }
 
-function isDirectVideo(url) {
-  if (!url) return false;
-  return !ytEmbedUrl(url); // anything that's not YouTube treated as direct
-}
-
+// ── VIDEO OVERLAY ──
 // ── VIDEO OVERLAY ──
 function openVideo(entryId) {
   const entry = entries.find(e => e.id === entryId);
   if (!entry) return;
-  const url = entry.youtubeUrl;
-  if (!url) return;
+  const embedUrl = ytEmbedUrl(entry.youtubeUrl);
+  if (!embedUrl) return;
+  document.getElementById('overlay-iframe').src = embedUrl;
 
   const overlay = document.getElementById('video-overlay');
-  const iframe = document.getElementById('overlay-iframe');
-  const video = document.getElementById('overlay-video');
-
-  const embedUrl = ytEmbedUrl(url);
-  if (embedUrl) {
-    iframe.src = embedUrl;
-    iframe.style.display = 'block';
-    video.style.display = 'none';
-    video.src = '';
-  } else {
-    video.src = url;
-    video.style.display = 'block';
-    iframe.style.display = 'none';
-    iframe.src = '';
-    video.play().catch(() => {});
-  }
-
   overlay.classList.add('visible');
+
   if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
   else if (overlay.webkitRequestFullscreen) overlay.webkitRequestFullscreen();
 
@@ -994,9 +973,6 @@ function openVideo(entryId) {
 function closeVideo() {
   document.getElementById('video-overlay').classList.remove('visible');
   document.getElementById('overlay-iframe').src = '';
-  const video = document.getElementById('overlay-video');
-  video.pause();
-  video.src = '';
 
   if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
   if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
@@ -1163,9 +1139,9 @@ function addEntry() {
   const vertical = document.getElementById('input-vertical').checked;
   const targetIndex = parseInt(document.getElementById('input-index').value);
 
-  if (!id || !title || !url) { toast('ID, title and video URL are required'); return; }
+  if (!id || !title || !url) { toast('ID, title and YouTube URL are required'); return; }
   if (entries.find(e => e.id === id)) { toast('ID already exists'); return; }
-  if (ytEmbedUrl(url) === null && !url.startsWith('http')) { toast('Invalid URL'); return; }
+  if (!ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
   if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
 
   entries.push({ id, title, youtubeUrl: url, vertical, targetIndex });
@@ -1207,7 +1183,7 @@ function renderEntries() {
       <div class="entry-edit-form" id="edit-${e.id}" style="display:none;">
         <input class="field-input" id="edit-id-${e.id}" placeholder="Entry ID" value="${e.id}" />
         <input class="field-input" id="edit-title-${e.id}" placeholder="Title" value="${(e.title||'').replace(/"/g,'&quot;')}" />
-        <input class="field-input" id="edit-url-${e.id}" placeholder="YouTube URL or direct video link" value="${(e.youtubeUrl||'').replace(/"/g,'&quot;')}" />
+        <input class="field-input" id="edit-url-${e.id}" placeholder="YouTube URL" value="${(e.youtubeUrl||'').replace(/"/g,'&quot;')}" />
         <input class="field-input" id="edit-index-${e.id}" type="number" min="0" placeholder="Target index (0, 1, 2…)" value="${e.targetIndex ?? ''}" />
         <div style="display:flex;align-items:center;gap:0.75rem;">
           <input type="checkbox" id="edit-vertical-${e.id}" ${e.vertical?'checked':''} style="width:1rem;height:1rem;accent-color:var(--sepia);cursor:pointer;" />
@@ -1239,7 +1215,7 @@ function saveEdit(id) {
   const targetIndex = parseInt(document.getElementById('edit-index-' + id).value);
   if (!newId) { toast('ID is required'); return; }
   if (!title) { toast('Title is required'); return; }
-  if (url && ytEmbedUrl(url) === null && !url.startsWith('http')) { toast('Invalid URL'); return; }
+  if (url && !ytEmbedUrl(url)) { toast('Invalid YouTube URL'); return; }
   if (isNaN(targetIndex) || targetIndex < 0) { toast('Target index must be 0 or higher'); return; }
   if (newId !== id && entries.find(e => e.id === newId)) { toast('ID already exists'); return; }
   entry.id = newId;
